@@ -1,7 +1,7 @@
 CC = g++
-CFLAGS = -Wall -Werror -g
+CFLAGS = -Wall -Werror -g -std=c++17
 
-EXE = bin/main
+EXE = bin/myfind
 
 all: $(EXE)
 
