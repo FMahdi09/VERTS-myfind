@@ -21,3 +21,4 @@ bin/
 *.cxxflags
 *.files
 *.includes
+*.creator.user
