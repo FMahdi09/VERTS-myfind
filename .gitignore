@@ -10,8 +10,9 @@
 *.dll
 *.dylib
 
-# bin dir
+# dir
 bin/
+.qtc_clangd/
 
 # Custom project generated files
 *.cflags
