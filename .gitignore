@@ -13,6 +13,7 @@
 # dir
 bin/
 .qtc_clangd/
+.vscode/
 
 # Custom project generated files
 *.cflags
