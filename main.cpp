@@ -3,6 +3,7 @@
 
 #include <unistd.h>
 
+// helper function
 void print_usage(std::string programName)
 {
     std::cout << "Usage: " << programName << " [-R] [-i] searchpath filename1 [filename2] … [filenameN]\n";
