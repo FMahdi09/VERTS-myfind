@@ -10,6 +10,7 @@ void print_usage(std::string programName)
     std::cout << "Usage: " << programName << " [-R] [-i] searchpath filename1 [filename2] … [filenameN]\n";
 }
 
+//test
 int main(int argc, char* argv[])
 {
     std::string programName = argv[0];
