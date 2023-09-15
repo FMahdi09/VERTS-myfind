@@ -1,16 +1,15 @@
+//Author: Artner Patrick, Mahdi Fabian
 #include <iostream>
 #include <string>
 
 #include <unistd.h>
 
-//test Pat
 // helper function
 void print_usage(std::string programName)
 {
     std::cout << "Usage: " << programName << " [-R] [-i] searchpath filename1 [filename2] … [filenameN]\n";
 }
 
-//test
 int main(int argc, char* argv[])
 {
     std::string programName = argv[0];
