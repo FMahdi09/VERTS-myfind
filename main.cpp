@@ -4,6 +4,8 @@
 #include <filesystem>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <limits.h>
+#include <cstring>
 
 // helper function
 void print_usage(std::string programName)
@@ -11,25 +13,38 @@ void print_usage(std::string programName)
     std::cout << "Usage: " << programName << " [-R] [-i] searchpath filename1 [filename2] … [filenameN]\n";
 }
 
-void waitForAllChildren(int startedChildren)
+void waitForAllChildren(int startedChildren, int pipe[2])
 {
     int finishedChildren = 0;
+    char buffer[PIPE_BUF];
+    close(pipe[1]);
 
+    // read data from pipe
+    while(read(pipe[0], buffer, PIPE_BUF) != 0)
+    {
+        std::cout << buffer;
+        memset(buffer, 0, sizeof(buffer));
+    }
+
+    // wait for all children to finish
     while(finishedChildren < startedChildren)
     {
         pid_t pid = wait(NULL);
 
         if(pid == -1)
         {
-            std::cerr << "myfork: error when waiting for child process\n";
+            std::cerr << "error when waiting for child process\n";
             return;
         }
         ++finishedChildren;
     }
 }
 
-int search(std::string path, std::string file, bool caseInsensitive, bool recursive)
+int search(std::string path, std::string file, bool caseInsensitive, bool recursive, int pipe[2])
 {
+    pid_t pid = getpid();
+    close(pipe[0]);
+
     if(recursive)
     {
         for(auto const& dir_entry : std::filesystem::recursive_directory_iterator(path))
@@ -37,7 +52,8 @@ int search(std::string path, std::string file, bool caseInsensitive, bool recurs
             if(std::filesystem::is_regular_file(dir_entry) &&
                 std::filesystem::path(dir_entry).filename() == file)
             {
-                std::cout << getpid() << ": " << file << ": " << dir_entry << "\n";
+                std::string toWrite = std::to_string(pid) + ": " + file + ": " + dir_entry.path().string() + "\n";
+                write(pipe[1], toWrite.c_str(), toWrite.length());
             }
         }
     }
@@ -48,7 +64,8 @@ int search(std::string path, std::string file, bool caseInsensitive, bool recurs
             if(std::filesystem::is_regular_file(dir_entry) &&
                 std::filesystem::path(dir_entry).filename() == file)
             {
-                std::cout << getpid() << ": " << file << ": " << dir_entry << "\n";
+                std::string toWrite = std::to_string(pid) + ": " + file + ": " + dir_entry.path().string() + "\n";
+                write(pipe[1], toWrite.c_str(), toWrite.length());
             }
         }
     }
@@ -86,9 +103,17 @@ int main(int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
-    // read path to search in
+    // read searchpath
     std::string searchPath = argv[optind++];
     int startedChildren = 0;
+
+    // create pipe
+    int fd[2];
+    if(pipe(fd) != 0)
+    {
+        std::cerr << "error when creating pipe\n";
+        return EXIT_FAILURE;
+    }
 
     // start child-processes for each given file
     while(optind < argc)
@@ -98,18 +123,18 @@ int main(int argc, char* argv[])
         switch(pid)
         {
         case -1: // error
-            std::cerr << "myfork: error when forking child process\n";
-            waitForAllChildren(startedChildren);
+            std::cerr << "error when forking child process\n";
+            waitForAllChildren(startedChildren, fd);
             return EXIT_FAILURE;
         case 0: // child process
-            return search(searchPath, argv[optind], iCounter, RCounter);
+            return search(searchPath, argv[optind], iCounter, RCounter, fd);
         }
         ++optind;
         ++startedChildren;
     }
 
     // wait for children to finish
-    waitForAllChildren(startedChildren);
+    waitForAllChildren(startedChildren, fd);
 
     return EXIT_SUCCESS;
 }
