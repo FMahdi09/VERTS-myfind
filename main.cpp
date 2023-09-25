@@ -17,6 +17,7 @@ void waitForAllChildren(int startedChildren, int pipe[2])
 {
     int finishedChildren = 0;
     char buffer[PIPE_BUF];
+    memset(buffer, 0, sizeof(buffer));
     close(pipe[1]);
 
     // read data from pipe
@@ -50,7 +51,7 @@ int search(std::string path, std::string file, bool caseInsensitive, bool recurs
         for(auto const& dir_entry : std::filesystem::recursive_directory_iterator(path))
         {
             if(std::filesystem::is_regular_file(dir_entry) &&
-                std::filesystem::path(dir_entry).filename() == file)
+               std::filesystem::path(dir_entry).filename() == file)
             {
                 std::string toWrite = std::to_string(pid) + ": " + file + ": " + dir_entry.path().string() + "\n";
                 write(pipe[1], toWrite.c_str(), toWrite.length());
@@ -62,7 +63,7 @@ int search(std::string path, std::string file, bool caseInsensitive, bool recurs
         for(auto const& dir_entry : std::filesystem::directory_iterator(path))
         {
             if(std::filesystem::is_regular_file(dir_entry) &&
-                std::filesystem::path(dir_entry).filename() == file)
+               std::filesystem::path(dir_entry).filename() == file)
             {
                 std::string toWrite = std::to_string(pid) + ": " + file + ": " + dir_entry.path().string() + "\n";
                 write(pipe[1], toWrite.c_str(), toWrite.length());
