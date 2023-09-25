@@ -16,8 +16,10 @@ void print_usage(std::string programName)
 void waitForAllChildren(int startedChildren, int pipe[2])
 {
     int finishedChildren = 0;
+
     char buffer[PIPE_BUF];
     memset(buffer, 0, sizeof(buffer));
+
     close(pipe[1]);
 
     // read data from pipe
