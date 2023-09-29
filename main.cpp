@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 #include <filesystem>
+
 #include <unistd.h>
 #include <sys/wait.h>
 #include <limits.h>
@@ -20,9 +21,10 @@ void waitForAllChildren(int startedChildren, int pipe[2])
     char buffer[PIPE_BUF];
     memset(buffer, 0, sizeof(buffer));
 
+    // close writing end of pipe
     close(pipe[1]);
 
-    // read data from pipe
+    // read data from pipe until all children close their writing end
     while(read(pipe[0], buffer, PIPE_BUF) != 0)
     {
         std::cout << buffer;
@@ -46,6 +48,8 @@ void waitForAllChildren(int startedChildren, int pipe[2])
 int search(std::string path, std::string file, bool caseInsensitive, bool recursive, int pipe[2])
 {
     pid_t pid = getpid();
+
+    // close reading end of pipe
     close(pipe[0]);
 
     if(recursive)
@@ -89,7 +93,6 @@ int main(int argc, char* argv[])
         case '?':
             print_usage(programName);
             return EXIT_FAILURE;
-            break;
         case 'i':
             ++iCounter;
             break;
@@ -118,7 +121,7 @@ int main(int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
-    // start child-processes for each given file
+    // start child-processes for each given filename
     while(optind < argc)
     {
         pid_t pid = fork();
