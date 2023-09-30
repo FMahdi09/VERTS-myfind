@@ -2,19 +2,61 @@
 #include <iostream>
 #include <string>
 #include <filesystem>
+#include <cctype>
 
 #include <unistd.h>
 #include <sys/wait.h>
 #include <limits.h>
 #include <cstring>
 
-// helper function
-void print_usage(std::string programName)
+namespace fs = std::filesystem;
+
+/*
+ * prints usage help to cout
+*/
+void print_usage(const std::string& programName)
 {
     std::cout << "Usage: " << programName << " [-R] [-i] searchpath filename1 [filename2] … [filenameN]\n";
 }
 
-void waitForAllChildren(int startedChildren, int pipe[2])
+/*
+ * compares two strings case insensitive
+ *
+ * params:
+ *  word1 & word2: strings to compare
+ *
+ * return:
+ *  true: strings are the same disregarding upper & lowercase
+ *
+ *  false: strings are different size / contain different symbols
+*/
+const bool caseInsensitiveCompare(const std::string& word1, const std::string& word2)
+{
+    if(word1.size() != word2.size())
+    {
+        return false;
+    }
+
+    for(size_t i = 0; i < word1.size(); ++i)
+    {
+        if(std::tolower(word1[i]) != std::tolower(word2[i]))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+/*
+ * reads from given pipe until all writing processes have disconnected and
+ * waits for given number of childprocesses to finish
+ *
+ * params:
+ *  startedChildren: number of childprocesses to wait for
+ *
+ *  pipe: pipe to read from
+*/
+void waitForAllChildren(const int startedChildren, const int pipe[2])
 {
     int finishedChildren = 0;
 
@@ -45,33 +87,54 @@ void waitForAllChildren(int startedChildren, int pipe[2])
     }
 }
 
-int search(std::string path, std::string file, bool caseInsensitive, bool recursive, int pipe[2])
+/*
+ * searches for given file in the given path, writes results in given pipe
+ *
+ * params:
+ *  path: path to search in (relative or absolute)
+ *
+ *  toSearch: filename to search
+ *
+ *  caseInsensitive: flag to enable case insensitive search
+ *
+ *  recursice: flag to enable recursive search
+ *
+ *  pipe: pipe to write in
+*/
+int search(const std::string& path, const std::string& toSearch, const bool caseInsensitive, const bool recursive, const int pipe[2])
 {
     pid_t pid = getpid();
+    std::string filename;
 
     // close reading end of pipe
     close(pipe[0]);
 
     if(recursive)
     {
-        for(auto const& dir_entry : std::filesystem::recursive_directory_iterator(path))
+        for(auto const& dir_entry : fs::recursive_directory_iterator(path))
         {
-            if(std::filesystem::is_regular_file(dir_entry) &&
-               std::filesystem::path(dir_entry).filename() == file)
+            filename = fs::path(dir_entry).filename();
+
+            if(fs::is_regular_file(dir_entry) &&
+               (filename == toSearch || (caseInsensitive && caseInsensitiveCompare(toSearch, filename))))
             {
-                std::string toWrite = std::to_string(pid) + ": " + file + ": " + dir_entry.path().string() + "\n";
+                // format: <pid>: <filename>: <complete-path-to-found-file>\n
+                std::string toWrite = std::to_string(pid) + ": " + filename + ": " + fs::absolute(fs::canonical(dir_entry)).string() + "\n";
                 write(pipe[1], toWrite.c_str(), toWrite.length());
             }
         }
     }
     else
     {
-        for(auto const& dir_entry : std::filesystem::directory_iterator(path))
+        for(auto const& dir_entry : fs::directory_iterator(path))
         {
-            if(std::filesystem::is_regular_file(dir_entry) &&
-               std::filesystem::path(dir_entry).filename() == file)
+            filename = fs::path(dir_entry).filename();
+
+            if(fs::is_regular_file(dir_entry) &&
+               (filename == toSearch || (caseInsensitive && caseInsensitiveCompare(toSearch, filename))))
             {
-                std::string toWrite = std::to_string(pid) + ": " + file + ": " + dir_entry.path().string() + "\n";
+                // format: <pid>: <filename>: <complete-path-to-found-file>\n
+                std::string toWrite = std::to_string(pid) + ": " + filename + ": " + fs::absolute(fs::canonical(dir_entry)).string() + "\n";
                 write(pipe[1], toWrite.c_str(), toWrite.length());
             }
         }
@@ -83,9 +146,16 @@ int main(int argc, char* argv[])
 {
     std::string programName = argv[0];
 
+    if(argc <= 1)
+    {
+        print_usage(programName);
+        return EXIT_FAILURE;
+    }
+
     int shortOption;
     int iCounter = 0;
     int RCounter = 0;
+    int startedChildren = 0;
 
     while ((shortOption = getopt(argc, argv, "Ri")) != EOF) {
         switch(shortOption)
@@ -111,7 +181,12 @@ int main(int argc, char* argv[])
 
     // read searchpath
     std::string searchPath = argv[optind++];
-    int startedChildren = 0;
+
+    if(!fs::exists(searchPath))
+    {
+        std::cerr << "\"" << searchPath << "\" no such file or directory\n";
+        return EXIT_FAILURE;
+    }
 
     // create pipe
     int fd[2];
